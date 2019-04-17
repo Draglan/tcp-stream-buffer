@@ -1,10 +1,9 @@
+#define _WIN32_WINNT 0x501
+
 #include "TCPStreamBuffer.h"
 #include <iostream>
+#include <windows.h>
 #include <WS2tcpip.h>
-
-
-bool TCPStreamBuffer::isWSAInitialized_ = false;
-int TCPStreamBuffer::instanceCount_ = 0;
 
 TCPStreamBuffer::TCPStreamBuffer(std::size_t bufferLength)
 	: outLength_(bufferLength), inLength_(bufferLength)
@@ -17,8 +16,36 @@ TCPStreamBuffer::TCPStreamBuffer(std::size_t bufferLength)
 
 	setg(inBuffer_.get(), inBuffer_.get(), inBuffer_.get());
 	setp(outBuffer_.get(), outBuffer_.get() + outLength_);
+	
+	WinSockInitializer::Instance().Initialize();
+}
 
-	++instanceCount_;
+TCPStreamBuffer::TCPStreamBuffer(TCPStreamBuffer&& other) 
+	: outBuffer_(std::move(other.outBuffer_)),
+	inBuffer_(std::move(other.inBuffer_)),
+	outLength_(other.outLength_),
+	inLength_(other.inLength_),
+	socket_(other.socket_)
+{
+	other.socket_ = INVALID_SOCKET;
+	other.outLength_ = 0;
+	other.inLength_ = 0;
+}
+
+TCPStreamBuffer& TCPStreamBuffer::operator=(TCPStreamBuffer&& other) {
+	if (this != &other) {
+		outBuffer_ = std::move(other.outBuffer_);
+		outLength_ = other.outLength_;
+		other.outLength_ = 0;
+		
+		inBuffer_ = std::move(other.inBuffer_);
+		inLength_ = other.inLength_;
+		other.inLength_ = 0;
+		
+		socket_ = other.socket_;
+		other.socket_ = INVALID_SOCKET;
+	}
+	return *this;
 }
 
 TCPStreamBuffer::~TCPStreamBuffer() {
@@ -28,21 +55,10 @@ TCPStreamBuffer::~TCPStreamBuffer() {
 	// If someone else has initialized WinSock2, that's fine; WSACleanup()
 	// only decrements an internal counter if WSAStartup() has been called
 	// more than once.
-	--instanceCount_;
-	if (instanceCount_ == 0) {
-		if (isWSAInitialized_) {
-			ShutdownWSA_();
-		}
-	}
+	WinSockInitializer::Instance().Shutdown();
 }
 
 bool TCPStreamBuffer::Connect(const std::string& hostname, const std::string& port) {
-	if (!isWSAInitialized_) {
-		if (!InitializeWSA_()) {
-			return false;
-		}
-	}
-
 	// Disconnect from any existing connection.
 	Disconnect();
 
@@ -81,6 +97,21 @@ bool TCPStreamBuffer::Connect(const std::string& hostname, const std::string& po
 
 	freeaddrinfo(result);
 	return true;
+}
+
+bool TCPStreamBuffer::Connect(SOCKET s) {
+	// Disconnect from any existing connection.
+	Disconnect();
+
+	// Reset buffer pointers.
+	setg(inBuffer_.get(), inBuffer_.get(), inBuffer_.get());
+	setp(outBuffer_.get(), outBuffer_.get() + outLength_);
+	
+	// Set the new socket.
+	socket_ = s;
+	
+	// Return true if a valid socket was passed.
+	return socket_ != INVALID_SOCKET;
 }
 
 void TCPStreamBuffer::Disconnect() {
@@ -150,21 +181,6 @@ int TCPStreamBuffer::sync() {
 	return 0;
 }
 
-bool TCPStreamBuffer::InitializeWSA_() {
-	WSAData data;
-	if (WSAStartup(MAKEWORD(2, 2), &data) != 0) {
-		return false;
-	}
-
-	isWSAInitialized_ = true;
-	return true;
-}
-
-void TCPStreamBuffer::ShutdownWSA_() {
-	WSACleanup();
-	isWSAInitialized_ = false;
-}
-
 bool TCPStreamBuffer::Send_(char* buffer, std::size_t len) {
 	if (socket_ == INVALID_SOCKET) return false;
 
@@ -182,4 +198,23 @@ bool TCPStreamBuffer::Send_(char* buffer, std::size_t len) {
 	}
 
 	return true;
+}
+
+void WinSockInitializer::Initialize() {
+	if (refCount_ == 0) {
+		WSAData data;
+		if (WSAStartup(MAKEWORD(2, 2), &data) != 0) {
+			throw std::runtime_error("WinSockInitializer::Initialize");
+		}
+	}
+
+	++refCount_;
+}
+
+void WinSockInitializer::Shutdown() {
+	--refCount_;
+	
+	if (refCount_ == 0) {
+		WSACleanup();
+	}
 }

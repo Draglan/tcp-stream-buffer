@@ -11,9 +11,12 @@ public:
 	// Create a new, unconnected TCP stream buffer.
 	TCPStreamBuffer(std::size_t bufferLength = bufferLength_);
 
-	// Move constructor and move-assignment are disabled.
-	TCPStreamBuffer(TCPStreamBuffer&& other) = delete;
-	TCPStreamBuffer& operator=(TCPStreamBuffer&& other) = delete;
+	// Move constructor and move-assignment.
+	// The moved-from stream buffer should not be used
+	// again.
+	
+	TCPStreamBuffer(TCPStreamBuffer&& other);
+	TCPStreamBuffer& operator=(TCPStreamBuffer&& other);
 
 	// Copy constructor and copy-assignment are disabled.
 	TCPStreamBuffer(const TCPStreamBuffer&) = delete;
@@ -26,6 +29,11 @@ public:
 	// on success, false otherwise.
 	bool Connect(const std::string& hostname, const std::string& port);
 
+	// Connect to an existing connection on the given socket.
+	// This disconnects from the current connection (if there is any).
+	// Returns true on success, false otherwise.
+	bool Connect(SOCKET s);
+	
 	// Disconnect the buffer. Does nothing if not already connected.
 	void Disconnect();
 
@@ -54,11 +62,6 @@ protected:
 	virtual int sync() override;
 
 private:
-	static bool InitializeWSA_();
-	static void ShutdownWSA_();
-	static bool isWSAInitialized_;
-	static int instanceCount_;
-
 	bool Send_(char* buffer, std::size_t len);
 
 	SOCKET socket_ = INVALID_SOCKET;
@@ -71,4 +74,16 @@ private:
 
 	std::unique_ptr<char[]> inBuffer_;
 	std::size_t inLength_;
+};
+
+class WinSockInitializer {
+public:
+	void Initialize();
+	void Shutdown();
+	static WinSockInitializer& Instance() {static WinSockInitializer instance; return instance;}
+	
+private:
+	int refCount_ = 0;
+	
+	WinSockInitializer() {}
 };

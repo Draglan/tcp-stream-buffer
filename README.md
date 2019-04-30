@@ -1,8 +1,8 @@
-##C++ TCP Stream Buffer
+## C++ TCP Stream Buffer
 This is a simple C++ TCP stream buffer, using WinSock2, that allows you to use IO streams over a TCP connection using the familiar stream syntax we all know and love.
 
-###Usage
-####Stream buffer
+### Usage
+#### Stream buffer
     #include <iostream>
 	#include <string>
 	#include "TCPStreamBuffer.h"
@@ -25,7 +25,7 @@ This is a simple C++ TCP stream buffer, using WinSock2, that allows you to use I
 		}
 	}
 
-####Listener
+#### Listener
     #include <iostream>
 	#include <string>
 	#include "TCPListener.h"

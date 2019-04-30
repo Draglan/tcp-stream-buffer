@@ -24,7 +24,7 @@ public:
 	~TCPListener();
 	
 	// Start listening for connections. Returns false on failure, true otherwise.
-	bool Listen(std::uint16_t port, int maxQueueLength = SOMAXCONN);
+	bool Listen(const std::string& port, int maxQueueLength = SOMAXCONN);
 	
 	// Accept a connection. Returns false if no connection was accepted,
 	// true otherwise. Blocks until a connection is accepted or an error

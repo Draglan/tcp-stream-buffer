@@ -2,7 +2,6 @@
 
 #include "TCPListener.h"
 #include "TCPStreamBuffer.h"
-#include <sstream>
 #include <WS2tcpip.h>
 
 TCPListener::TCPListener() {
@@ -24,11 +23,12 @@ TCPListener& TCPListener::operator=(TCPListener&& other) {
 }
 
 TCPListener::~TCPListener() {
+	Disconnect();
 	WinSockInitializer::Instance().Shutdown();
 }
 
 // Start listening for connections. Returns false on failure, true otherwise.
-bool TCPListener::Listen(std::uint16_t port, int maxQueueLength) {
+bool TCPListener::Listen(const std::string& port, int maxQueueLength) {
 	// Disconnect from any existing connections.
 	Disconnect();
 	
@@ -42,10 +42,7 @@ bool TCPListener::Listen(std::uint16_t port, int maxQueueLength) {
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_protocol = IPPROTO_TCP;
 	
-	std::stringstream ssPort;
-	ssPort << port;
-	
-	if (getaddrinfo("localhost", ssPort.str().c_str(), &hints, &result) != 0) {
+	if (getaddrinfo("localhost", port.c_str(), &hints, &result) != 0) {
 		return false;
 	}
 	

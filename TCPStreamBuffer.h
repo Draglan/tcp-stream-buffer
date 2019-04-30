@@ -56,6 +56,14 @@ public:
 		return inBuffer_.get();
 	}
 
+	// Resize the in buffer. If the buffer has been deleted,
+	// such as after a move operation, a new one is created.
+	void ReallocateInBuffer(std::size_t newSize);
+	
+	// Resize the out buffer. If the buffer has been deleted,
+	// such as after a move operation, a new one is created.
+	void ReallocateOutBuffer(std::size_t newSize);
+	
 protected:
 	virtual int underflow() override;
 	virtual int overflow(int c = EOF) override;

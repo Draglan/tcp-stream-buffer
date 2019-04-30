@@ -4,6 +4,7 @@
 #include <iostream>
 #include <windows.h>
 #include <WS2tcpip.h>
+#include <cstring>
 
 TCPStreamBuffer::TCPStreamBuffer(std::size_t bufferLength)
 	: outLength_(bufferLength), inLength_(bufferLength)
@@ -217,4 +218,52 @@ void WinSockInitializer::Shutdown() {
 	if (refCount_ == 0) {
 		WSACleanup();
 	}
+}
+
+// Resize the input buffer. If the buffer has been deleted,
+// such as after a move operation, a new one is created.
+void TCPStreamBuffer::ReallocateInBuffer(std::size_t newSize) {
+	if (newSize == 0) newSize = 1;
+	
+	if (inBuffer_.get()) {
+		std::unique_ptr<char[]> buf = std::make_unique<char[]>(newSize);
+		
+		// get relative position of the current buffer position
+		std::size_t cpos = gptr() - eback();
+		if (cpos > newSize) cpos = newSize;
+		
+		std::size_t len = std::min(newSize, inLength_);
+		std::memcpy(buf.get(), inBuffer_.get(), len);
+		inBuffer_ = std::move(buf);
+		
+		// reset get pointers
+		setg(inBuffer_.get(), inBuffer_.get() + cpos, inBuffer_.get() + newSize);
+	}
+	else {
+		inBuffer_ = std::make_unique<char[]>(newSize);
+		setg(inBuffer_.get(), inBuffer_.get(), inBuffer_.get() + newSize);
+	}
+	
+	inLength_ = newSize;
+}
+
+// Resize the out buffer. If the buffer has been deleted,
+// such as after a move operation, a new one is created.
+void TCPStreamBuffer::ReallocateOutBuffer(std::size_t newSize) {
+	if (newSize == 0) newSize = 1;
+	
+	if (outBuffer_.get()) {
+		std::unique_ptr<char[]> buf = std::make_unique<char[]>(newSize);
+		std::size_t len = std::min(newSize, outLength_);
+		std::memcpy(buf.get(), outBuffer_.get(), len);
+		
+		outBuffer_ = std::move(buf);
+		
+	}
+	else {
+		outBuffer_ = std::make_unique<char[]>(newSize);
+	}
+	
+	outLength_ = newSize;
+	setp(outBuffer_.get(), outBuffer_.get() + newSize); // reset put pointers
 }
